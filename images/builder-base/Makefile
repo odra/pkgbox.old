@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-REG := quay.io
+REG := localhost
 NAME := pkgbox/builder-base
 TAG := latest
 IMAGE := ${REG}/${NAME}:${TAG}

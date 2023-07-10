@@ -8,7 +8,7 @@ from podman import PodmanClient
 
 __VERSION__: str = '0.0.1'
 
-DEFAULT_IMAGE: str = 'quay.io/pkgbox/builder-base:latest'
+DEFAULT_IMAGE: str = 'localhost/pkgbox/builder-base:latest'
 
 PODMAN_URI = 'unix:///tmp/podman.sock'
 
