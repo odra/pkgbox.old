@@ -1,0 +1,162 @@
+#!/usr/bin/env python
+import json
+from typing import Any, Dict, Optional
+
+import click
+from podman import PodmanClient
+
+
+__VERSION__: str = '0.0.1'
+
+DEFAULT_IMAGE: str = 'quay.io/pkgbox/builder-base:latest'
+
+PODMAN_URI = 'unix:///tmp/podman.sock'
+
+client: PodmanClient  = PodmanClient(base_url=PODMAN_URI)
+
+
+def jsonrpc_request(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        'id': None,
+        'jsonrpc': '2.0',
+        'method': method,
+        'params': params
+    }
+
+
+def name_gen(image: str) -> str:
+    parts = image.split('/')[-1].split(':')
+
+    return f'pkgbox-buildbox-{parts[0]}-{parts[1]}'
+
+
+@click.group
+def cli() -> None:
+    pass
+
+
+@cli.command
+def version() -> None:
+    click.echo(f'v{__VERSION__}')
+
+
+@cli.command
+@click.option('--name', type=str, required=False)
+@click.option('--image', type=str, default=DEFAULT_IMAGE)
+@click.option('--create_only', is_flag=True, default=False)
+def create(name: str, image: str, create_only: bool) -> None:
+    click.echo('Testing API connection...')
+    client.ping()
+
+    click.echo(f'Checking if image "{image}" exists...')
+    if not client.images.exists(image):
+        click.echo(f'Image "{image}" does not exist, exiting...')
+        return
+    
+    box_name = name if name is not None else name_gen(image)
+    container = None
+    click.echo(f'Checking if build box "{box_name}" exists...')
+    if client.containers.exists(box_name):
+        click.echo(f'Build box "{box_name}" already exists, skipping creation...')
+        container = client.containers.get(box_name)
+    else:
+        click.echo(f'Creating build box "{box_name}"...')
+        create_opts = {
+            'name': box_name,
+            'labels': {
+                'pkgbox': 'true'
+            },
+            'environment': {
+                'PKGBOX_NAME': box_name,
+                'PKGBOX_IMAGE': image
+            }
+        }
+        container = client.containers.create(image, ['sleep', 'infinity'], **create_opts)
+        click.echo(f'Build box {box_name} created.')
+
+    if create_only:
+        click.echo('Will not start build box because "create-only" was set.')
+    else:
+        if container.status == 'running':
+            click.echo(f'Build box "{box_name}" is already running.')
+        else:
+            click.echo(f'Starting build box {box_name}...')
+            container.start()
+            container.wait(condition=["running", "exited"])
+            container.reload()
+            click.echo(f'Build box {box_name} is running')
+
+
+@cli.command
+@click.argument('name')
+def remove(name: str) -> None:
+    click.echo(f'Deleting build box {name} and its associated data...')
+
+    if not client.containers.exists(name):
+        click.echo(f'Build box does not exist: "{name}", exiting...')
+        
+        return
+ 
+    remove_opts = {
+        'force': True
+    }
+    client.containers.remove(name, **remove_opts)
+
+    click.echo(f'Build box {name} deleted.')
+
+
+@cli.command
+def list():
+    list_opts = {
+        'labels': {
+            'pkgbox': 'true'
+        }
+    }
+    containers = client.containers.list(**list_opts)
+
+    if len(containers) == 0:
+        return
+
+    for container in containers:
+        click.echo(container.name)
+
+
+@cli.command
+@click.argument('name')
+def status(name: str):
+    if not client.containers.exists(name):
+        click.echo(f'Box not found: {name}')
+        return
+
+    container = client.containers.get(name)
+
+    click.echo(container.status)
+
+
+@cli.command
+@click.argument('name')
+@click.option('--repository', type=str, required=False)
+@click.option('--path', type=str, required=False)
+def build(name: str, from_repository: Optional[str], from_path: Optional[str]):
+    if not client.containers.exists(name):
+        click.echo(f'Box not found: {name}')
+        return
+
+    container = client.containers.get(name)
+
+    cmd = [
+        '/opt/pkgbox/pkgbox-rpc',
+        json.dumps(jsonrpc_request('ping', {}))
+    ]
+    code, out = container.exec_run(cmd)
+
+    if code != 0:
+        click.echo(f'Error: {out}')
+        return    
+
+    data = json.loads(out.decode().replace('\n', ''))
+    click.echo(data)
+
+
+if __name__ == '__main__':
+    cli()

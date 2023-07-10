@@ -1,0 +1,22 @@
+FROM registry.fedoraproject.org/fedora:38
+
+RUN dnf install -y \
+gcc \
+rpm-build \
+rpm-devel \
+rpmlint \
+make \
+python \
+bash \
+coreutils \
+diffutils \
+patch \
+rpmdevtools
+
+RUN rpmdev-setuptree && \
+mkdir -p /opt/pkgbox && \
+mv /root/rpmbuild /opt/pkgbox
+
+COPY files/ /
+
+WORKDIR /opt/pkgbox/rpmbuild
