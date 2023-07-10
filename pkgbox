@@ -89,7 +89,10 @@ def create(name: str, image: str, create_only: bool) -> None:
 
 @cli.command
 @click.argument('name')
-def remove(name: str) -> None:
+@click.option('--confirm', prompt='All box data will be deleted, type YES to confirm')
+def remove(name: str, confirm: str) -> None:
+    if confirm != 'YES':
+        return
     click.echo(f'Deleting build box {name} and its associated data...')
 
     if not client.containers.exists(name):
@@ -134,7 +137,6 @@ def status(name: str):
 
 
 @cli.command
-@click.argument('name')
 @click.option('--repository', type=str, required=False)
 @click.option('--path', type=str, required=False)
 def build(name: str, from_repository: Optional[str], from_path: Optional[str]):
