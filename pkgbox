@@ -31,12 +31,15 @@ def name_gen(image: str) -> str:
 
 
 @click.group
-def cli() -> None:
-    pass
+@click.option('--box', type=str)
+@click.pass_context
+def cli(ctx, box: str) -> None:
+    ctx.ensure_object(dict)
+    ctx.obj['box_name'] = box
 
 
 @cli.command
-def version() -> None:
+def version(ctx) -> None:
     click.echo(f'v{__VERSION__}')
 
 
@@ -137,18 +140,22 @@ def status(name: str):
 
 
 @cli.command
+@click.pass_context
 @click.option('--repository', type=str, required=False)
-@click.option('--path', type=str, required=False)
-def build(name: str, from_repository: Optional[str], from_path: Optional[str]):
-    if not client.containers.exists(name):
-        click.echo(f'Box not found: {name}')
+def build(ctx, repository: Optional[str]):
+    box_name  = ctx.obj.get('box_name')
+    if not client.containers.exists(box_name):
+        click.echo(f'Box not found: {box_name}')
         return
 
     container = client.containers.get(name)
 
+    cmd_params = {
+        'repository': repository
+    }
     cmd = [
         '/opt/pkgbox/pkgbox-rpc',
-        json.dumps(jsonrpc_request('ping', {}))
+        json.dumps(jsonrpc_request('build', cmd_params))
     ]
     code, out = container.exec_run(cmd)
 
