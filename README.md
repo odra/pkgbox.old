@@ -1,5 +1,7 @@
 # PkgBox
 
+New repository: https://github.com/odra/pkgbox
+
 PkgBox, or Package Box if you will, is a *very very very early stage tool* to manage
 rpm builds, build roots and repositories in containers.
 
